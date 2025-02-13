@@ -1,3 +1,4 @@
+from transformers import XLMRobertaTokenizer
 import pandas as pd
 import numpy as np
 import unicodedata
@@ -35,5 +36,15 @@ for df in [trainDF, testDF]:
 trainDF = trainDF.apply(lambda x: x.str.lower() if x.dtype == "object" else x)
 testDF = testDF.apply(lambda x: x.str.lower() if x.dtype == "object" else x)
 
+tokenizer = XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
+
+def tokenize(text):
+    return tokenizer(text, padding="max_length", truncation=True, max_length=512, return_tensors="pt")
+
+trainDF["premise_tokenized"] = trainDF["premise"].apply(lambda x: tokenize(x))
+trainDF["hypothesis_tokenized"] = trainDF["hypothesis"].apply(lambda x: tokenize(x))
+
+testDF["premise_tokenized"] = testDF["premise"].apply(lambda x: tokenize(x))
+testDF["hypothesis_tokenized"] = testDF["hypothesis"].apply(lambda x: tokenize(x))
 
 print(trainDF.head())
