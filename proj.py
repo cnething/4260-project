@@ -1,114 +1,144 @@
-
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import nltk
-import re
 import unicodedata
-from nltk.tokenize import sent_tokenize, word_tokenize
-from nltk import pos_tag, ne_chunk
-from nltk.tree import Tree
-from collections import Counter
-from nltk.corpus import stopwords
-from sklearn.feature_extraction.text import CountVectorizer
-
-# NLTK downloads
-nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('maxent_ne_chunker')
-nltk.download('words')
-nltk.download('stopwords')
 import re
-from deep_translator import GoogleTranslator
+import matplotlib.pyplot as plt
+from collections import Counter, defaultdict
+from langdetect import detect
+from datasets import Dataset
+from transformers import AutoTokenizer
+from tqdm import tqdm
+from tqdm import tqdm_notebook
+tqdm_notebook().pandas()
 
-
-testDF = pd.read_csv("test.csv")
+# loads data
+print("Loading data...")
 trainDF = pd.read_csv("train.csv")
+testDF = pd.read_csv("test.csv")
+
+# function that detects languages
+def detect_language(text):
+    try:
+        return detect(text)
+    except:
+        return 'unknown'
 
 # function to clean text
-def clean_text(text):
-    if not isinstance(text, str):  
-        return text 
+def clean_text(text, lang):
+    if not isinstance(text, str):
+        return text
     
-    # normalization 
+    # normalize unicode characters
     text = unicodedata.normalize("NFKC", text)
     
     # remove extra spaces
     text = re.sub(r"\s+", " ", text).strip()
-
-    # standardize quotes
-    text = re.sub(r"[“”‘’«»]", '"', text)
-
-    # remove parenthises keeping content inside
-    text = re.sub(r"\((.*?)\)", r"\1", text).strip()
+    
+    # language-specific cleaning
+    if lang in ['en', 'es', 'fr', 'de', 'it']:  # we can add more here -Claudia
+        # Remove special characters, keeping basic punctuation
+        text = re.sub(r'[^a-zA-Z0-9\s.,!?]', '', text)
+    else:
+        # for other languages, only remove clearly non-linguistic characters
+        text = re.sub(r'[^\w\s.,!?]', '', text)
     
     return text
 
-def translate_text(text):
-    try:
-        return GoogleTranslator(source='auto', target='en').translate(text)
-    except Exception as e:
-        return text
+# function to process DataFrame
+def process_dataframe(df):
+    print("Detecting languages...")
+    df['premise_lang'] = df['premise'].progress_apply(detect_language)
+    df['hypothesis_lang'] = df['hypothesis'].progress_apply(detect_language)
+    
+    print("Cleaning text...")
+    df['premise_clean'] = df['premise'].progress_apply(clean_text)
+    df['hypothesis_clean'] = df['hypothesis'].progress_apply(clean_text)
+    
+    return df
 
-# apply cleaning function to premise and hypothesis columns
-# Removed trainDF as it shouldn't need to be cleaned - Nol
-print("Translating Premise")
-trainDF['premise'] = trainDF['premise'].apply(translate_text)
-print("Cleaning Premise")
-trainDF['premise'] = trainDF['premise'].apply(clean_text)
-print("translating hypothesis")
-trainDF['hypothesis'] = trainDF['hypothesis'].apply(translate_text)
-print("Cleaning hypothesis")
-trainDF['hypothesis'] = trainDF['hypothesis'].apply(clean_text)
-# for df in [trainDF]:
-#     for col in ["premise", "hypothesis"]:
-#         print(f"for loop df: {df}, column: {col}")
-#         df[col] = df[col].map(clean_text)
-#         df[col] = df[col].apply(translate_text)
-        
-print("\n done cleaning")
-print(trainDF[0:5])
-            
+# process DataFrames
+print("Processing training data...")
+trainDF = process_dataframe(trainDF)
+print("Processing test data...")
+testDF = process_dataframe(testDF)
 
-# convert text to lowercase
-trainDF = trainDF.apply(lambda x: x.str.lower() if x.dtype == "object" else x)
-testDF = testDF.apply(lambda x: x.str.lower() if x.dtype == "object" else x)
+# display language distribution
+def display_lang_distribution(df):
+    lang_counts = defaultdict(int)
+    for lang in df['premise_lang']:
+        lang_counts[lang] += 1
+    for lang in df['hypothesis_lang']:
+        lang_counts[lang] += 1
+    
+    total = sum(lang_counts.values())
+    print("Language distribution:")
+    for lang, count in sorted(lang_counts.items(), key=lambda x: x[1], reverse=True):
+        print(f"{lang}: {count} ({count/total*100:.2f}%)")
 
-# Tokenize text
-data = " ".join(trainDF['premise'].dropna() + " " + trainDF['hypothesis'].dropna())
-sentences = sent_tokenize(data)
+print("\nTraining data:")
+display_lang_distribution(trainDF)
+print("\nTest data:")
+display_lang_distribution(testDF)
 
-# Tokenize sentences
-tokenized_sentences = [word_tokenize(sentence) for sentence in sentences]
+# convert to hugging face dataset
+train_dataset = Dataset.from_pandas(trainDF)
+test_dataset = Dataset.from_pandas(testDF)
 
-# POS tagging
-tagged_sentences = [pos_tag(sentence) for sentence in tokenized_sentences]
+# initialize tokenizer
+tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased", use_fast=True)
 
-# Extract named entities
-def extract_entities(tagged_sentences):
-    return [
-        (" ".join(word for word, tag in subtree.leaves()))
-        for sentence in tagged_sentences
-        for subtree in ne_chunk(sentence)
-        if isinstance(subtree, Tree)
-    ]
+# tokenization function
+def tokenize_function(examples):
+    return tokenizer(examples["premise_clean"], examples["hypothesis_clean"], truncation=True, padding="max_length")
 
-entities = extract_entities(tagged_sentences)
+# apply tokenization
+print("\nTokenizing training data...")
+tokenized_train = train_dataset.map(tokenize_function, batched=True, num_proc=4)
+print("Tokenizing test data...")
+tokenized_test = test_dataset.map(tokenize_function, batched=True, num_proc=4)
 
-# Entity counts
-counts = Counter(entities)
+# Named Entity Recognition (using tokenized data)
+from transformers import pipeline
 
-# DataFrame for entity analysis
-df_entities = pd.DataFrame(counts.items(), columns=["Entity", "Frequency"])
+ner_pipeline = pipeline("ner", model="bert-base-multilingual-cased", tokenizer=tokenizer)
+
+def extract_entities(text, max_length=512):
+    # Split long text into chunks to avoid exceeding max token limit
+    chunks = [text[i:i+max_length] for i in range(0, len(text), max_length)]
+    entities = []
+    for chunk in chunks:
+        entities.extend(ner_pipeline(chunk))
+    return [entity['word'] for entity in entities]
+
+# extracts entities from a sample of the data
+print("\nExtracting named entities from a sample...")
+sample_size = min(1000, len(tokenized_train))  # Adjust sample size as needed
+sample_texts = tokenized_train['premise_clean'][:sample_size] + tokenized_train['hypothesis_clean'][:sample_size]
+all_entities = []
+for text in tqdm(sample_texts):
+    all_entities.extend(extract_entities(text))
+
+# count and analyze entities
+entity_counts = Counter(all_entities)
+df_entities = pd.DataFrame(entity_counts.items(), columns=["Entity", "Frequency"])
 df_entities = df_entities.sort_values(by="Frequency", ascending=False)
 
-# Plot the top named entities
+# plot top named entities
 top_entities = df_entities.head(10)
-plt.figure(figsize=(10, 5))
+plt.figure(figsize=(12, 6))
 plt.bar(top_entities["Entity"], top_entities["Frequency"])
-plt.title("Top Named Entities in Premise and Hypothesis Data")
+plt.title("Top Named Entities in Sample Data")
 plt.ylabel("Frequency")
 plt.xlabel("Named Entity")
-plt.xticks(rotation=45)
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
 plt.show()
-trainDF.to_csv("clean_train.csv", index=False)
+
+# prints top 20 entities and their frequencies
+print("\nTop 20 Named Entities:")
+print(df_entities.head(20))
+
+# Save the processed datasets
+tokenized_train.save_to_disk("processed_train")
+tokenized_test.save_to_disk("processed_test")
+print("\nProcessed datasets saved to 'processed_train' and 'processed_test'")
