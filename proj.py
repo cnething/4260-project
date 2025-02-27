@@ -24,9 +24,9 @@ def detect_language(text):
         return 'unknown'
 
 # function to clean text
-def clean_text(text, lang):
+def clean_text(text, lang='unknown'):
     if not isinstance(text, str):
-        return text
+        return str(text)
     
     # normalize unicode characters
     text = unicodedata.normalize("NFKC", text)
@@ -51,16 +51,37 @@ def process_dataframe(df):
     df['hypothesis_lang'] = df['hypothesis'].progress_apply(detect_language)
     
     print("Cleaning text...")
-    df['premise_clean'] = df['premise'].progress_apply(clean_text)
-    df['hypothesis_clean'] = df['hypothesis'].progress_apply(clean_text)
+    def safe_clean_text(row):
+        try:
+            premise_clean = clean_text(row['premise'], row['premise_lang'])
+            hypothesis_clean = clean_text(row['hypothesis'], row['hypothesis_lang'])
+            return pd.Series([premise_clean, hypothesis_clean])
+        except Exception as e:
+            print(f"Error processing row: {e}")
+            print(f"Premise: {row['premise'][:50]}...")
+            print(f"Hypothesis: {row['hypothesis'][:50]}...")
+            return pd.Series([row['premise'], row['hypothesis']])
+
+    cleaned = df.progress_apply(safe_clean_text, axis=1)
+    df['premise_clean'], df['hypothesis_clean'] = cleaned[0], cleaned[1]
     
     return df
 
 # process DataFrames
 print("Processing training data...")
-trainDF = process_dataframe(trainDF)
+try:
+    trainDF = process_dataframe(trainDF)
+    print("Training data processed successfully.")
+except Exception as e:
+    print(f"Error processing training data: {e}")
+
 print("Processing test data...")
-testDF = process_dataframe(testDF)
+try:
+    testDF = process_dataframe(testDF)
+    print("Test data processed successfully.")
+except Exception as e:
+    print(f"Error processing test data: {e}")
+
 
 # display language distribution
 def display_lang_distribution(df):
