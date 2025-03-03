@@ -60,7 +60,7 @@ def clean_text(text, lang='unknown'):
     
     # language-specific cleaning
     if lang in ['en', 'es', 'fr', 'de', 'it']:  # we can add more here -Claudia
-        # Remove special characters, keeping basic punctuation
+        # remove special characters
         text = re.sub(r'[^a-zA-Z0-9\s.,!?]', '', text)
         
         # remove stop words
