@@ -8,13 +8,37 @@ from langdetect import detect
 from datasets import Dataset
 from transformers import AutoTokenizer
 from tqdm import tqdm
-from tqdm import tqdm_notebook
-tqdm_notebook().pandas()
+from tqdm.notebook import tqdm
+tqdm.pandas()
+import nltk
+from nltk.corpus import stopwords
+
+nltk.download('stopwords')
+stop_words = set(stopwords.words('english'))
 
 # loads data
 print("Loading data...")
 trainDF = pd.read_csv("train.csv")
 testDF = pd.read_csv("test.csv")
+
+print(trainDF['language'].unique())
+
+# checking for missing values
+missing_values = trainDF.isnull().sum()
+print("Missing Values \n", missing_values)
+missing_values = testDF.isnull().sum()
+print("Missing Values \n", missing_values)
+
+# checking for duplicate entries
+duplicate_rows = trainDF.duplicated().sum()
+print("Duplicate Rows: ", duplicate_rows)
+duplicate_rows = testDF.duplicated().sum()
+print("Duplicate Rows: ", duplicate_rows)
+
+# Checking the distribution of class labels
+label_counts = trainDF['label'].value_counts()
+print("Result Distribution for train data \n", label_counts)
+
 
 # function that detects languages
 def detect_language(text):
@@ -153,6 +177,23 @@ plt.ylabel("Frequency")
 plt.xlabel("Named Entity")
 plt.xticks(rotation=45, ha='right')
 plt.tight_layout()
+# prints the distribution of class labels
+label_counts = trainDF['label'].value_counts()
+print("Class Distribution:\n", label_counts)
+
+# graphs the distribution of class labels
+language_distribution = trainDF.pivot_table(index='language', columns='label', aggfunc='size', fill_value=0)
+
+print("Unique Languages in Data:", trainDF['language'].unique())
+data_matrix = language_distribution.values
+plt.figure(figsize=(12, 8))
+plt.imshow(data_matrix, cmap="Blues", aspect="auto")
+plt.colorbar(label="Count")
+plt.xticks(ticks=range(3), labels=["Entailment (0)", "Contradiction (1)", "Neutral (2)"])
+plt.yticks(ticks=range(len(language_distribution.index)), labels=language_distribution.index)
+plt.xlabel("Label")
+plt.ylabel("Language")
+plt.title("Label Distribution per Language")
 plt.show()
 
 # prints top 20 entities and their frequencies
