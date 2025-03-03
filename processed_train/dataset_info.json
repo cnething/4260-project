@@ -1,0 +1,69 @@
+{
+  "citation": "",
+  "description": "",
+  "features": {
+    "id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "premise": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "hypothesis": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "lang_abv": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "language": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "label": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "premise_lang": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "hypothesis_lang": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "premise_clean": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "hypothesis_clean": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "input_ids": {
+      "feature": {
+        "dtype": "int32",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    },
+    "token_type_ids": {
+      "feature": {
+        "dtype": "int8",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    },
+    "attention_mask": {
+      "feature": {
+        "dtype": "int8",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    }
+  },
+  "homepage": "",
+  "license": ""
+}

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from collections import Counter, defaultdict
 from langdetect import detect
 from datasets import Dataset
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, pipeline
 from tqdm import tqdm
 from tqdm.notebook import tqdm
 tqdm.pandas()
@@ -25,15 +25,15 @@ print(trainDF['language'].unique())
 
 # checking for missing values
 missing_values = trainDF.isnull().sum()
-print("Missing Values \n", missing_values)
+print("Missing Values Train Data: \n", missing_values)
 missing_values = testDF.isnull().sum()
-print("Missing Values \n", missing_values)
+print("Missing Values Test Data: \n", missing_values)
 
 # checking for duplicate entries
 duplicate_rows = trainDF.duplicated().sum()
-print("Duplicate Rows: ", duplicate_rows)
+print("Duplicate Rows Train Data: ", duplicate_rows)
 duplicate_rows = testDF.duplicated().sum()
-print("Duplicate Rows: ", duplicate_rows)
+print("Duplicate Rows Test Data: ", duplicate_rows)
 
 # Checking the distribution of class labels
 label_counts = trainDF['label'].value_counts()
@@ -62,8 +62,14 @@ def clean_text(text, lang='unknown'):
     if lang in ['en', 'es', 'fr', 'de', 'it']:  # we can add more here -Claudia
         # Remove special characters, keeping basic punctuation
         text = re.sub(r'[^a-zA-Z0-9\s.,!?]', '', text)
+        
+        # remove stop words
+        if lang in stopwords.fileids():
+            stop_words = set(stopwords.words(lang))
+            words = text.split()
+            text = ' '.join([word for word in words if word.lower() not in stop_words])
     else:
-        # for other languages, only remove clearly non-linguistic characters
+        # for other languages only remove non-linguistic characters
         text = re.sub(r'[^\w\s.,!?]', '', text)
     
     return text
@@ -120,87 +126,85 @@ def display_lang_distribution(df):
     for lang, count in sorted(lang_counts.items(), key=lambda x: x[1], reverse=True):
         print(f"{lang}: {count} ({count/total*100:.2f}%)")
 
+    # sort languages by count 
+    sorted_langs = sorted(lang_counts.items(), key=lambda x: x[1], reverse=True)
+    
+    langs = [lang for lang, _ in sorted_langs]
+    counts = [count for _, count in sorted_langs]
+    percentages = [count/total*100 for count in counts]
+    
+    # Plot the distribution
+    plt.figure(figsize=(12, 6))
+    bars = plt.bar(langs, percentages)
+    plt.title('Language Distribution')
+    plt.xlabel('Languages')
+    plt.ylabel('Percentage')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
+
 print("\nTraining data:")
 display_lang_distribution(trainDF)
-print("\nTest data:")
-display_lang_distribution(testDF)
 
-# convert to hugging face dataset
+# plot the distribution of class labels
+label_counts = trainDF['label'].value_counts()
+plt.figure(figsize=(8, 5))
+plt.bar(label_counts.index, label_counts.values, color=['blue', 'red', 'green'])
+plt.xlabel("Label (0: Entailment, 1: Contradiction, 2: Neutral)")
+plt.ylabel("Count")
+plt.title("Class Distribution")
+plt.xticks(ticks=label_counts.index, labels=["Entailment (0)", "Contradiction (1)", "Neutral (2)"])
+plt.show()
+
+
+print("Unique Languages in Data:", trainDF['language'].unique())
+
+# Create a stacked bar chart for class distribution per language
+language_distribution = trainDF.pivot_table(index='language', columns='label', aggfunc='size', fill_value=0)
+language_distribution.plot(kind='bar', stacked=True, figsize=(12, 8), colormap="viridis")
+plt.xlabel("Language")
+plt.ylabel("Count")
+plt.title("Class Distribution per Language")
+plt.xticks(rotation=45, ha='right')
+plt.legend(title="Label", labels=["Entailment (0)", "Contradiction (1)", "Neutral (2)"])
+plt.show()
+
+# Convert to Hugging Face dataset
 train_dataset = Dataset.from_pandas(trainDF)
 test_dataset = Dataset.from_pandas(testDF)
 
-# initialize tokenizer
-tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased", use_fast=True)
-
-# tokenization function
-def tokenize_function(examples):
-    return tokenizer(examples["premise_clean"], examples["hypothesis_clean"], truncation=True, padding="max_length")
-
-# apply tokenization
-print("\nTokenizing training data...")
-tokenized_train = train_dataset.map(tokenize_function, batched=True, num_proc=4)
-print("Tokenizing test data...")
-tokenized_test = test_dataset.map(tokenize_function, batched=True, num_proc=4)
-
-# Named Entity Recognition (using tokenized data)
-from transformers import pipeline
-
-ner_pipeline = pipeline("ner", model="bert-base-multilingual-cased", tokenizer=tokenizer)
+# Named Entity Recognition
+ner_pipeline = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple")
 
 def extract_entities(text, max_length=512):
-    # Split long text into chunks to avoid exceeding max token limit
     chunks = [text[i:i+max_length] for i in range(0, len(text), max_length)]
     entities = []
     for chunk in chunks:
-        entities.extend(ner_pipeline(chunk))
-    return [entity['word'] for entity in entities]
+        chunk_entities = ner_pipeline(chunk)
+        entities.extend([entity['word'] for entity in chunk_entities if entity['entity_group'] != 'O'])
+    return entities
 
-# extracts entities from a sample of the data
 print("\nExtracting named entities from a sample...")
-sample_size = min(1000, len(tokenized_train))  # Adjust sample size as needed
-sample_texts = tokenized_train['premise_clean'][:sample_size] + tokenized_train['hypothesis_clean'][:sample_size]
+sample_size = min(1000, len(train_dataset))
+sample_texts = train_dataset['premise_clean'][:sample_size] + train_dataset['hypothesis_clean'][:sample_size]
 all_entities = []
 for text in tqdm(sample_texts):
     all_entities.extend(extract_entities(text))
 
-# count and analyze entities
-entity_counts = Counter(all_entities)
-df_entities = pd.DataFrame(entity_counts.items(), columns=["Entity", "Frequency"])
+# Count and analyze entities
+entityCounts = Counter(all_entities)
+df_entities = pd.DataFrame(entityCounts.items(), columns=["Entity", "Frequency"])
 df_entities = df_entities.sort_values(by="Frequency", ascending=False)
 
-# plot top named entities
-top_entities = df_entities.head(10)
-plt.figure(figsize=(12, 6))
-plt.bar(top_entities["Entity"], top_entities["Frequency"])
-plt.title("Top Named Entities in Sample Data")
-plt.ylabel("Frequency")
-plt.xlabel("Named Entity")
-plt.xticks(rotation=45, ha='right')
-plt.tight_layout()
-# prints the distribution of class labels
-label_counts = trainDF['label'].value_counts()
-print("Class Distribution:\n", label_counts)
-
-# graphs the distribution of class labels
-language_distribution = trainDF.pivot_table(index='language', columns='label', aggfunc='size', fill_value=0)
-
-print("Unique Languages in Data:", trainDF['language'].unique())
-data_matrix = language_distribution.values
-plt.figure(figsize=(12, 8))
-plt.imshow(data_matrix, cmap="Blues", aspect="auto")
-plt.colorbar(label="Count")
-plt.xticks(ticks=range(3), labels=["Entailment (0)", "Contradiction (1)", "Neutral (2)"])
-plt.yticks(ticks=range(len(language_distribution.index)), labels=language_distribution.index)
-plt.xlabel("Label")
-plt.ylabel("Language")
-plt.title("Label Distribution per Language")
-plt.show()
-
-# prints top 20 entities and their frequencies
 print("\nTop 20 Named Entities:")
 print(df_entities.head(20))
 
-# Save the processed datasets
-tokenized_train.save_to_disk("processed_train")
-tokenized_test.save_to_disk("processed_test")
-print("\nProcessed datasets saved to 'processed_train' and 'processed_test'")
+plt.figure(figsize=(12, 8))
+top_20 = df_entities.head(20)
+plt.barh(top_20['Entity'], top_20['Frequency'])
+plt.xlabel('Frequency')
+plt.ylabel('Entity')
+plt.title('Top 20 Named Entities')
+plt.gca().invert_yaxis() 
+plt.tight_layout()
+plt.show()
