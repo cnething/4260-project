@@ -18,6 +18,7 @@ nltk.download('averaged_perceptron_tagger')
 nltk.download('maxent_ne_chunker')
 nltk.download('words')
 nltk.download('stopwords')
+nltk.download('punkt_tab')
 import re
 from deep_translator import GoogleTranslator
 
@@ -50,21 +51,24 @@ def translate_text(text):
     except Exception as e:
         return text
 
-# apply cleaning function to premise and hypothesis columns
-# Removed trainDF as it shouldn't need to be cleaned - Nol
-print("Translating Premise")
+print("Train premise")
+trainDF['premise'] = trainDF['premise'].map(clean_text)
 trainDF['premise'] = trainDF['premise'].apply(translate_text)
-print("Cleaning Premise")
-trainDF['premise'] = trainDF['premise'].apply(clean_text)
-print("translating hypothesis")
+print("Train hypothesis")
+trainDF['hypothesis'] = trainDF['hypothesis'].map(clean_text)
 trainDF['hypothesis'] = trainDF['hypothesis'].apply(translate_text)
-print("Cleaning hypothesis")
-trainDF['hypothesis'] = trainDF['hypothesis'].apply(clean_text)
-# for df in [trainDF]:
+print("Test premise")
+testDF['premise'] = testDF['premise'].map(clean_text)
+testDF['premise'] = testDF['premise'].apply(translate_text)
+print("Test hypothesis")
+testDF['hypothesis'] = testDF['hypothesis'].map(clean_text)
+testDF['hypothesis'] = testDF['hypothesis'].apply(translate_text)
+# apply cleaning function to premise and hypothesis columns
+# for df in [trainDF, testDF]:
 #     for col in ["premise", "hypothesis"]:
 #         print(f"for loop df: {df}, column: {col}")
 #         df[col] = df[col].map(clean_text)
-#         df[col] = df[col].apply(translate_text)
+#         df[col] = df[col].map(translate_text)
         
 print("\n done cleaning")
 print(trainDF[0:5])
@@ -73,6 +77,9 @@ print(trainDF[0:5])
 # convert text to lowercase
 trainDF = trainDF.apply(lambda x: x.str.lower() if x.dtype == "object" else x)
 testDF = testDF.apply(lambda x: x.str.lower() if x.dtype == "object" else x)
+
+trainDF.to_csv("clean_train.csv", index=False)
+testDF.to_csv("clean_test.csv", index=False)
 
 # Tokenize text
 data = " ".join(trainDF['premise'].dropna() + " " + trainDF['hypothesis'].dropna())
@@ -111,4 +118,3 @@ plt.ylabel("Frequency")
 plt.xlabel("Named Entity")
 plt.xticks(rotation=45)
 plt.show()
-trainDF.to_csv("clean_train.csv", index=False)
