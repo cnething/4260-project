@@ -54,6 +54,7 @@ def compute_metrics(eval_pred):
 
 # training args
 training_args = TrainingArguments(
+    output_dir="./checkPoints", 
     evaluation_strategy="epoch",
     save_strategy="epoch",
     learning_rate=2e-5,
