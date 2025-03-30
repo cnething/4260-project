@@ -1,50 +1,80 @@
-from transformers import XLMRobertaTokenizer
 import pandas as pd
+from datasets import Dataset
+from transformers import (
+    XLMRobertaTokenizer,
+    AutoModelForSequenceClassification,
+    DataCollatorWithPadding,
+    Trainer,
+    TrainingArguments
+)
+import evaluate
 import numpy as np
-import unicodedata
-import re
+import torch
 
+# Check device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
-testDF = pd.read_csv("test.csv")
-trainDF = pd.read_csv("train.csv")
+# load data
+train = pd.read_csv("train.csv", on_bad_lines='skip', quoting=3)
+test = pd.read_csv("test.csv")
 
-# function to clean text
-def clean_text(text):
-    if not isinstance(text, str):  
-        return text 
-    
-    # normalization 
-    text = unicodedata.normalize("NFKC", text)
-    
-    # remove extra spaces
-    text = re.sub(r"\s+", " ", text).strip()
+# convert to Hugging Face dataset
+trainHF = Dataset.from_pandas(train[['premise', 'hypothesis', 'label']])
+testHF = Dataset.from_pandas(test[['premise', 'hypothesis']])
 
-    # standardize quotes
-    text = re.sub(r"[“”‘’«»]", '"', text)
-
-    # remove parenthises keeping content inside
-    text = re.sub(r"\((.*?)\)", r"\1", text).strip()
-    
-    return text
-
-# apply cleaning function to premise and hypothesis columns
-for df in [trainDF, testDF]:
-    for col in ["premise", "hypothesis"]:
-        df[col] = df[col].map(clean_text)
-
-# convert text to lowercase
-trainDF = trainDF.apply(lambda x: x.str.lower() if x.dtype == "object" else x)
-testDF = testDF.apply(lambda x: x.str.lower() if x.dtype == "object" else x)
-
+# set tokenizer and model
 tokenizer = XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
+model = AutoModelForSequenceClassification.from_pretrained("xlm-roberta-base", num_labels=3)
+model.to(device)
 
-def tokenize(text):
-    return tokenizer(text, padding="max_length", truncation=True, max_length=512, return_tensors="pt")
+# tokenization function
+def tokenize_function(examples):
+    return tokenizer(examples["premise"], examples["hypothesis"], truncation=True)
 
-trainDF["premise_tokenized"] = trainDF["premise"].apply(lambda x: tokenize(x))
-trainDF["hypothesis_tokenized"] = trainDF["hypothesis"].apply(lambda x: tokenize(x))
+# tokenize
+train = trainHF.map(tokenize_function, batched=True)
+test = testHF.map(tokenize_function, batched=True)
 
-testDF["premise_tokenized"] = testDF["premise"].apply(lambda x: tokenize(x))
-testDF["hypothesis_tokenized"] = testDF["hypothesis"].apply(lambda x: tokenize(x))
+# padding
+data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
-print(trainDF.head())
+# metrics
+accuracy = evaluate.load("accuracy")
+f1 = evaluate.load("f1")
+
+# compute metrics
+def compute_metrics(eval_pred):
+    logits, labels = eval_pred
+    predictions = np.argmax(logits, axis=-1)
+    return {
+        "accuracy": accuracy.compute(predictions=predictions, references=labels)["accuracy"],
+        "f1": f1.compute(predictions=predictions, references=labels, average="weighted")["f1"],
+    }
+
+# training args
+training_args = TrainingArguments(
+    evaluation_strategy="epoch",
+    save_strategy="epoch",
+    learning_rate=2e-5,
+    per_device_train_batch_size=8,
+    per_device_eval_batch_size=8,
+    num_train_epochs=3,
+    weight_decay=0.01,
+    logging_dir="./logs",
+    load_best_model_at_end=True,
+    metric_for_best_model="accuracy",
+)
+
+# trainer
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=train,
+    eval_dataset=train,
+    data_collator=data_collator,
+    compute_metrics=compute_metrics,
+)
+
+# train the model
+trainer.train()
