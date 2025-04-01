@@ -29,8 +29,8 @@ model = AutoModelForSequenceClassification.from_pretrained("xlm-roberta-base", n
 model.to(device)
 
 # tokenization function
-def tokenize_function(examples):
-    return tokenizer(examples["premise"], examples["hypothesis"], truncation=True)
+def tokenize_function(text):
+    return tokenizer(text["premise"], text["hypothesis"], truncation=True)
 
 # tokenize
 train = trainHF.map(tokenize_function, batched=True)
@@ -44,8 +44,9 @@ accuracy = evaluate.load("accuracy")
 f1 = evaluate.load("f1")
 
 # compute metrics
-def compute_metrics(eval_pred):
-    logits, labels = eval_pred
+def compute_metrics(predictions):
+    logits = predictions
+    labels = predictions
     predictions = np.argmax(logits, axis=-1)
     return {
         "accuracy": accuracy.compute(predictions=predictions, references=labels)["accuracy"],
