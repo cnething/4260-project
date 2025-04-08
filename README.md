@@ -19,10 +19,10 @@ Current training configurations:
 
 Batch size-	5
 Learning rate-	3e-5
-Epochs-	10
+Epochs-	5
 Evaluation strategy-	Every epoch
-Early stopping-	Patience = 3
-Metric for best model-	F1 (weighted)
+Early stopping-	Patience = 2
+Metric for best model-	F1
 Logging steps-	10
 
 Metrics used:
