@@ -17,8 +17,8 @@ Tokenizer- XLMRobertaTokenizer
 
 Current training configurations:
 
-Batch size-	10
-Learning rate-	2e-5
+Batch size-	5
+Learning rate-	3e-5
 Epochs-	10
 Evaluation strategy-	Every epoch
 Early stopping-	Patience = 3
@@ -38,4 +38,4 @@ Model is evaluated on validation set
 Predictions for test set are saved to test_with_predictions.csv
 
 
-https://colab.research.google.com/drive/1J2566y4UONahnFvUQ3ZYU1Nmrspjz3sQ#scrollTo=pQMLyvRtMdz5
+https://colab.research.google.com/drive/1IvMJkFr1cMeLAWVJxmUyxD-Jx1iJfkcg?usp=sharing
