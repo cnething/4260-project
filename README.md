@@ -8,14 +8,14 @@ Make sure to install the required libraries first:
 !pip install evaluate
 !pip install transformers
 
-Model:
+# Model:
 
 Base Model- xlm-roberta-base
 Task: Multiclass sequence classification (3 classes)
 Framework- Hugging Face Transformers
 Tokenizer- XLMRobertaTokenizer
 
-Current training configurations:
+# Current training configurations:
 
 Batch size-	5
 Learning rate-	3e-5
@@ -25,17 +25,17 @@ Early stopping-	Patience = 2
 Metric for best model-	F1
 Logging steps-	10
 
-Metrics used:
+# Metrics used:
 
 Accuracy
 F1 Score
 Precision
 Recall
 
-Output:
+# Output:
 
 Model is evaluated on validation set
 Predictions for test set are saved to test_with_predictions.csv
 
 
-https://colab.research.google.com/drive/1IvMJkFr1cMeLAWVJxmUyxD-Jx1iJfkcg?usp=sharing
+https://colab.research.google.com/drive/1zfhn90gj5A_nOD2XQY0DZu_nfkUJpCBz?usp=sharing
