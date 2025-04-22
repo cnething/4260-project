@@ -8,34 +8,51 @@ Make sure to install the required libraries first:
 !pip install evaluate
 !pip install transformers
 
-# Model:
+# Environment
+Platform: Google Colab
+Language: Python 3.11+
+Hardware: GPU acceleration
 
+# Model:
 Base Model- xlm-roberta-base
 Task: Multiclass sequence classification (3 classes)
 Framework- Hugging Face Transformers
 Tokenizer- XLMRobertaTokenizer
 
-# Current training configurations:
+# Usage
+1. Open the notebook/script in Google Colab.
 
-Batch size-	5
-Learning rate-	3e-5
-Epochs-	5
-Evaluation strategy-	Every epoch
-Early stopping-	Patience = 2
-Metric for best model-	F1
-Logging steps-	10
+2. Upload or mount your dataset files (train.csv, test.csv).
 
-# Metrics used:
+3. Run the script xlm_roberta_final.py or notebook cells step-by-step.
 
-Accuracy
-F1 Score
-Precision
-Recall
+4. Training, validation, and evaluation are automatically handled.
 
-# Output:
+5. Outputs include:
+Validation metrics over epochs
+ROC curves
+Confusion matrices
+Loss curves
+CSV files for predictions and evaluation metrics
 
-Model is evaluated on validation set
-Predictions for test set are saved to test_with_predictions.csv
+# Model Performance
+Accuracy: ~70% on validation data.
 
+F1-Score: ~70%, balanced across classes.
 
+ROC-AUC:
+Entailment: 0.88
+Neutral: 0.88
+Contradiction: 0.81
+
+# Visualizations
+1. Validation Metrics Over Epochs: Accuracy, Precision, Recall, F1.
+
+2. Multiclass ROC Curve: Per-class AUC analysis.
+
+3. Confusion Matrix: Normalized matrix showing true vs predicted labels.
+
+4. Training vs Validation Loss: Over epochs to assess overfitting.
+
+# Collab Link
 https://colab.research.google.com/drive/1zfhn90gj5A_nOD2XQY0DZu_nfkUJpCBz?usp=sharing
