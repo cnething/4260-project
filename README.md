@@ -24,9 +24,9 @@ Label Info:
 
   0: Entailment
 
-  1: Contradiction
+  1: Neutral
 
-  2: Neutral
+  2: Contradiction
 
 # Installation
 
