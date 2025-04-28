@@ -43,8 +43,8 @@ F1-Score: ~70%, balanced across classes.
 
 ROC-AUC:
 Entailment: 0.88
-Neutral: 0.88
-Contradiction: 0.81
+Contradiction: 0.88
+Neutral: 0.81
 
 # Visualizations
 1. Validation Metrics Over Epochs: Accuracy, Precision, Recall, F1.
